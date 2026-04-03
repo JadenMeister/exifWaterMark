@@ -74,10 +74,10 @@ export default function Home() {
         ]);
 
         const frameMargin = layoutMode === 'frame' ? 100 : 0;
-        const baseWidth = 2200; 
+        const baseWidth = 2200;
         const photoAreaWidth = baseWidth - (frameMargin * 2);
         const barHeight = 320;
-        
+
         let photoAreaHeight = photoAreaWidth;
         if (ratio === '4:5') photoAreaHeight = photoAreaWidth * 1.25;
         if (ratio === '9:16') photoAreaHeight = photoAreaWidth * (16 / 9);
@@ -93,7 +93,7 @@ export default function Home() {
         // 2. Draw Photo
         const imgRatio = mainImg.width / mainImg.height;
         const targetRatio = photoAreaWidth / photoAreaHeight;
-        
+
         let drawW, drawH, sx, sy;
         if (imgRatio > targetRatio) {
           drawH = mainImg.height;
@@ -106,7 +106,7 @@ export default function Home() {
           sx = 0;
           sy = (mainImg.height - drawH) / 2;
         }
-        
+
         const photoY = layoutMode === 'frame' ? frameMargin : 0;
         ctx.drawImage(mainImg, sx, sy, drawW, drawH, frameMargin, photoY, photoAreaWidth, photoAreaHeight);
 
@@ -114,7 +114,7 @@ export default function Home() {
         const barY = photoY + photoAreaHeight;
         const textMargin = layoutMode === 'frame' ? frameMargin + 40 : 100;
         const dividerX = baseWidth * 0.58;
-        
+
         ctx.strokeStyle = '#E5E8EB';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -179,7 +179,7 @@ export default function Home() {
         ctx.textAlign = 'right';
         const rightX = baseWidth - textMargin;
         const rightStartY = barY + (barHeight / 2) - (95 / 2);
-        
+
         ctx.fillStyle = '#191F28';
         ctx.font = 'bold 44px Pretendard';
         const settings = [
@@ -201,12 +201,38 @@ export default function Home() {
     render();
   }, [imageUrl, exifData, ratio, layoutMode]);
 
-  const downloadImage = () => {
+  const shareImage = async () => {
     if (!canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+
+      const file = new File([blob], `ExifFrame_${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'ExifFrame',
+            text: 'Processed with ExifFrame',
+          });
+        } catch (error) {
+          console.error('Error sharing:', error);
+          downloadBlob(blob);
+        }
+      } else {
+        downloadBlob(blob);
+      }
+    }, 'image/jpeg', 0.95);
+  };
+
+  const downloadBlob = (blob: Blob) => {
     const link = document.createElement('a');
     link.download = `ExifFrame_${Date.now()}.jpg`;
-    link.href = canvasRef.current.toDataURL('image/jpeg', 0.9);
+    link.href = URL.createObjectURL(blob);
     link.click();
+    URL.revokeObjectURL(link.href);
   };
 
   return (
@@ -239,9 +265,8 @@ export default function Home() {
                     <button
                       key={r}
                       onClick={() => setRatio(r)}
-                      className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${
-                        ratio === r ? 'bg-white text-[#3182F6] shadow-sm' : 'text-[#8B95A1] hover:text-[#4E5968]'
-                      }`}
+                      className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${ratio === r ? 'bg-white text-[#3182F6] shadow-sm' : 'text-[#8B95A1] hover:text-[#4E5968]'
+                        }`}
                     >
                       {r}
                     </button>
@@ -253,9 +278,8 @@ export default function Home() {
                     <button
                       key={m}
                       onClick={() => setLayoutMode(m)}
-                      className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${
-                        m === layoutMode ? 'bg-white text-[#3182F6] shadow-sm' : 'text-[#8B95A1] hover:text-[#4E5968]'
-                      }`}
+                      className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${m === layoutMode ? 'bg-white text-[#3182F6] shadow-sm' : 'text-[#8B95A1] hover:text-[#4E5968]'
+                        }`}
                     >
                       {m === 'bleed' ? '꽉 채우기' : '여백 주기'}
                     </button>
@@ -263,25 +287,34 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="relative w-full overflow-hidden rounded-[32px] bg-[#F9FAFB] shadow-md group">
-                <canvas ref={canvasRef} className="w-full h-auto" />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                  <label className="bg-white text-black px-6 py-3 rounded-full font-bold cursor-pointer hover:scale-105 transition-transform">
-                    변경하기
+              <div className="relative w-full overflow-hidden rounded-[32px] bg-[#F9FAFB] shadow-md">
+                <canvas ref={canvasRef} className="w-full h-auto block" />
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <label className="flex-1 cursor-pointer bg-[#F2F4F6] text-[#4E5968] py-4 rounded-2xl font-bold text-center hover:bg-[#E5E8EB] transition-all">
+                    사진 변경
                     <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
                   </label>
-                  <button onClick={downloadImage} className="bg-[#3182F6] text-white px-6 py-3 rounded-full font-bold hover:scale-105 transition-transform">
-                    저장하기
+                  <button
+                    onClick={shareImage}
+                    className="flex-[2] bg-[#3182F6] text-white py-4 rounded-2xl font-bold hover:bg-[#1B64DA] transition-all shadow-lg shadow-blue-200"
+                  >
+                    사진 저장 및 공유하기
                   </button>
                 </div>
+                <p className="text-center text-[#8B95A1] text-sm">
+                  Tip: 위 공유 버튼을 눌러 사진첩에 바로 저장할 수 있습니다.
+                </p>
               </div>
 
               <div className="space-y-6">
                 {exifData?.make?.toUpperCase().includes('FUJIFILM') && (
                   <div className="space-y-4">
                     <p className="text-sm font-semibold text-[#4E5968] flex items-center gap-2 px-1">
-                       <span className="w-2 h-2 bg-[#00AA46] rounded-full animate-pulse"></span>
-                       필름 시뮬레이션을 선택해 보세요
+                      <span className="w-2 h-2 bg-[#00AA46] rounded-full animate-pulse"></span>
+                      필름 시뮬레이션을 선택해 보세요
                     </p>
                     <div className="flex overflow-x-auto gap-5 pb-6 scrollbar-hide -mx-1 px-1">
                       {[
@@ -335,9 +368,9 @@ export default function Home() {
           )}
         </div>
       </div>
-      
+
       <footer className="mt-12 text-center text-[#8B95A1] text-sm px-4">
-        <p>© 2024 ExifFrame. Toss inspired minimalism.</p>
+        <p>© 2024 ExifFrame.</p>
       </footer>
     </main>
   );

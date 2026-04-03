@@ -45,3 +45,7 @@ public/sw.js
 public/sw.js.map
 public/swe-worker-*.js
 public/swe-worker-*.js.map
+
+.claude
+.agent
+/node_modules
