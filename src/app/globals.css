@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F2F4F6;
+  --foreground: #191F28;
+  --font-pretendard: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-pretendard);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-pretendard);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar for Toss-style */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #E5E8EB;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #D1D6DB;
+}
