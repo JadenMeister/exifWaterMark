@@ -12,6 +12,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [ratio, setRatio] = useState<Ratio>('4:5');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('frame');
+  const [location, setLocation] = useState('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -110,6 +111,27 @@ export default function Home() {
         const photoY = layoutMode === 'frame' ? frameMargin : 0;
         ctx.drawImage(mainImg, sx, sy, drawW, drawH, frameMargin, photoY, photoAreaWidth, photoAreaHeight);
 
+        // 2.1 Draw Location Marker (Only if location text exists)
+        if (location) {
+          const locX = baseWidth - frameMargin - 40;
+          const locY = photoY + photoAreaHeight - 40;
+          
+          ctx.save();
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'bottom';
+          ctx.font = '500 32px Pretendard';
+          
+          // Shadow for readability on any background
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+          ctx.shadowBlur = 8;
+          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetY = 2;
+          
+          ctx.fillStyle = 'white';
+          ctx.fillText(`📍 ${location}`, locX, locY);
+          ctx.restore();
+        }
+
         // 3. Data Bar Logic
         const barY = photoY + photoAreaHeight;
         const textMargin = layoutMode === 'frame' ? frameMargin + 40 : 100;
@@ -199,7 +221,7 @@ export default function Home() {
     };
 
     render();
-  }, [imageUrl, exifData, ratio, layoutMode]);
+  }, [imageUrl, exifData, ratio, layoutMode, location]);
 
   const shareImage = async () => {
     if (!canvasRef.current) return;
@@ -285,6 +307,24 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
+
+                <div className="relative group">
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="📍 장소 입력 (예: Tokyo, Japan)"
+                    className="w-full bg-[#F2F4F6] border-none rounded-2xl py-4 px-6 text-sm font-bold text-[#191F28] placeholder-[#8B95A1] focus:ring-2 focus:ring-[#3182F6] transition-all"
+                  />
+                  {location && (
+                    <button 
+                      onClick={() => setLocation('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8B95A1] hover:text-[#4E5968] p-1"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="relative w-full overflow-hidden rounded-[32px] bg-[#F9FAFB] shadow-md">
@@ -353,6 +393,7 @@ export default function Home() {
                   <InfoItem label="셔터속도" value={exifData?.exposureTime ? `${exifData.exposureTime}s` : '-'} />
                   <InfoItem label="ISO" value={exifData?.iso} />
                   <InfoItem label="필름" value={exifData?.fujiFilmMode || '미감지 (선택 필요)'} />
+                  <InfoItem label="장소" value={location || '-'} />
                 </div>
               </div>
             </div>

@@ -1,4 +1,7 @@
 import ExifReader from 'exifreader';
+import getRecipe from 'fuji-recipes'
+import { parse as parseExifr } from 'exifr'; // exifr 추가
+
 
 export interface ExifData {
   make?: string;
@@ -288,7 +291,10 @@ const FUJIFILM_EXIF_VALUE_MAP: Record<string, any> = {
   },
 };
 
+
+
 function parseFujifilmExif(makerNote: ArrayBuffer | Uint8Array | undefined): Record<string, any> | undefined {
+
   if (!makerNote) return undefined;
 
   const uint8Array = makerNote instanceof Uint8Array ? makerNote : new Uint8Array(makerNote);
@@ -297,6 +303,8 @@ function parseFujifilmExif(makerNote: ArrayBuffer | Uint8Array | undefined): Rec
     console.log("Not a Fujifilm MakerNote header:", header);
     return undefined;
   }
+
+
 
   const view = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
 
@@ -423,15 +431,31 @@ export const BRAND_LOGOS: Record<string, string> = {
 
 export async function processExif(file: File): Promise<ExifData> {
   const tags = await ExifReader.load(file, { expanded: true });
+  
+  // Try all possible ways to get the MakerNote binary
+  let rawMakerNote: Uint8Array | undefined;
+  try {
+    const buffer = await file.arrayBuffer();
+    const exifrResult = await parseExifr(buffer, { makerNote: true });
+    if (exifrResult?.makerNote) {
+      // exifr returns number[] or Uint8Array. Convert to Uint8Array for consistency.
+      rawMakerNote = new Uint8Array(exifrResult.makerNote);
+    }
+  } catch (e) {
+    console.warn('exifr makerNote extract failed:', e);
+  }
 
-  // Try all possible group names for makernote
-  const makerNoteGroup = (tags as any).makernote || (tags as any).makerNote || (tags as any).MakerNote;
-  const rawMakerNote = makerNoteGroup?.value || (makerNoteGroup instanceof Uint8Array ? makerNoteGroup : undefined);
+  // Fallback buffer extraction from ExifReader if exifr failed
+  if (!rawMakerNote) {
+    const makerNoteGroup = (tags as any).makernote || (tags as any).makerNote || (tags as any).MakerNote;
+    const val = makerNoteGroup?.value || (makerNoteGroup instanceof Uint8Array ? makerNoteGroup : undefined);
+    if (val) rawMakerNote = new Uint8Array(val);
+  }
 
   const flatTags: any = {};
   for (const group in tags) {
     const groupTags = (tags as any)[group];
-    if (groupTags) {
+    if (groupTags && typeof groupTags === 'object') {
       for (const tagName in groupTags) {
         if (!flatTags[tagName]) flatTags[tagName] = groupTags[tagName];
       }
@@ -465,31 +489,38 @@ export async function processExif(file: File): Promise<ExifData> {
     brandLogo,
   };
 
-  // Heavy Duty Fujifilm Parsing + Deep Keyword Search Fallback
+  // --- Specialized Fujifilm Processing ---
   if (make.toUpperCase().includes('FUJIFILM')) {
-    console.log('--- Fujifilm Detection Sync ---');
-    console.log('Available Groups:', Object.keys(tags));
-
-
-    // 1st: Try Binary Parser
+    console.log('--- Fujifilm Detection Sync (HBD) ---');
+    
+    // Priority 1: fuji-recipes library
     if (rawMakerNote) {
+      try {
+        // Convert Uint8Array to number[] to satisfy library types
+        const recipe = getRecipe(Array.from(rawMakerNote));
+        if (recipe && (recipe as any).FilmMode) {
+          data.fujiFilmMode = (recipe as any).FilmMode.toString().trim();
+          console.log('Success (Recipes):', data.fujiFilmMode);
+        }
+      } catch (e) {
+        console.warn('fuji-recipes failed:', e);
+      }
+    }
+
+    // Priority 2: Manual Binary Parser (Our internal logic)
+    if (!data.fujiFilmMode && rawMakerNote) {
       const parsedFuji = parseFujifilmExif(rawMakerNote);
       const normalizedFuji = normalizeFujifilmExif(parsedFuji);
       if (normalizedFuji) {
         data.fujiFilmMode = (normalizedFuji["Exif.Fujifilm.FilmMode"] || normalizedFuji["Exif.Fujifilm.PictureMode"])?.toString().trim();
-        if (data.fujiFilmMode) console.log('Binary Match:', data.fujiFilmMode);
+        if (data.fujiFilmMode) console.log('Success (Binary):', data.fujiFilmMode);
       }
     }
 
-    // 2nd: Try Keyword Search Fallback
+    // Priority 3: Deep Keyword Search (Fallback)
     if (!data.fujiFilmMode) {
       data.fujiFilmMode = findFilmSimulationByKeyword(tags);
-      if (data.fujiFilmMode) console.log('Keyword Match:', data.fujiFilmMode);
-    }
-
-    if (!data.fujiFilmMode) {
-      console.log('--- Fuji detection failed. Dumping ALL tags for inspection ---');
-      console.dir(tags, { depth: null });
+      if (data.fujiFilmMode) console.log('Success (Keyword):', data.fujiFilmMode);
     }
   }
 
